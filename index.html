@@ -727,7 +727,7 @@ async function loadFeed() {
   const wrap = document.getElementById('feedCards');
   wrap.innerHTML = '<div class="loading-card"><span class="spinner"></span>Loading posts...</div>';
   try {
-    const snap = await getDocs(query(collection(db,'posts'), orderBy('createdAt','desc'), limit(20)));
+    const snap = await getDocs(query(collection(db,'posts'), orderBy('createdAt','desc'), limit(100)));
     if (snap.empty) { wrap.innerHTML = '<div class="loading-card">No posts yet. Be the first!</div>'; return; }
     wrap.innerHTML = '';
     snap.forEach(docSnap => renderCard(wrap, docSnap.id, docSnap.data()));
