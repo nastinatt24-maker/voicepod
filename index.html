@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Voice Pod</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com">
+<link rel="preconnect" href="https://firestore.googleapis.com">
+<link rel="preload" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'" crossorigin="anonymous">
+<noscript><link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" crossorigin="anonymous"></noscript>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0c0c0e; --card: #1a1a20; --border: #252530;
+    --accent: #c8f135; --accent2: #7c5cbf; --text: #f0f0ee; --muted: #8a8a9e;
+  }
+  html { height: -webkit-fill-available; }
+  body { min-height: 100vh; min-height: -webkit-fill-available; background: var(--bg); color: var(--text); font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  .page { display: none; min-height: 100vh; flex-direction: column; }
+  .page.active { display: flex; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(22px); } to { opacity:1; transform:translateY(0); } }
+
+  /* S1 */
+  #s1 { align-items:center; justify-content:center; text-align:center; padding:48px 28px 64px; position:relative; overflow:hidden; }
+  #s1::before { content:''; position:absolute; width:min(560px,120vw); height:min(560px,120vw); border-radius:50%; background:radial-gradient(circle,rgba(124,92,191,.13) 0%,transparent 70%); top:-15%; left:50%; transform:translateX(-50%); pointer-events:none; }
+  #s1::after { content:''; position:absolute; width:min(380px,90vw); height:min(380px,90vw); border-radius:50%; background:radial-gradient(circle,rgba(200,241,53,.07) 0%,transparent 70%); bottom:-5%; right:-15%; pointer-events:none; }
+  .s1-inner { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; max-width:440px; width:100%; animation:fadeUp .65s ease both; }
+  .wordmark { font-family:'Syne',-apple-system,sans-serif; font-size:clamp(40px,12vw,70px); font-weight:800; letter-spacing:-2px; line-height:1; margin-bottom:clamp(14px,3.5vw,22px); }
+  .wordmark em { font-style:normal; color:var(--accent); }
+  .tagline { font-size:clamp(15px,3.8vw,18px); color:var(--muted); line-height:1.8; font-weight:300; margin-bottom:clamp(36px,9vw,56px); max-width:260px; }
+  .btn-start { background:var(--accent); color:#0c0c0e; border:none; border-radius:100px; padding:clamp(15px,3.5vw,18px) clamp(52px,14vw,80px); font-family:'Syne',-apple-system,sans-serif; font-size:clamp(16px,4vw,19px); font-weight:700; cursor:pointer; transition:transform .18s,box-shadow .18s; }
+  .btn-start:hover { transform:scale(1.05); box-shadow:0 12px 40px rgba(200,241,53,.38); }
+  .btn-start:active { transform:scale(0.97); }
+
+  /* S2 */
+  #s2 { align-items:center; justify-content:flex-start; padding:clamp(48px,10vw,80px) 28px 80px; position:relative; overflow:hidden; min-height:100vh; }
+  #s2::before { content:''; position:absolute; width:min(500px,110vw); height:min(500px,110vw); border-radius:50%; background:radial-gradient(circle,rgba(124,92,191,.10) 0%,transparent 65%); top:-10%; left:50%; transform:translateX(-50%); pointer-events:none; }
+  .s2-inner { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; width:100%; max-width:480px; flex:1; animation:fadeUp .5s ease both; }
+  .s2-title { font-family:'Syne',-apple-system,sans-serif; font-size:clamp(24px,6vw,36px); font-weight:800; letter-spacing:-.5px; margin-bottom:8px; text-align:center; }
+  .s2-sub { font-size:clamp(14px,3.5vw,16px); color:var(--muted); margin-bottom:clamp(40px,9vw,64px); text-align:center; }
+  .mic-btn { width:clamp(140px,36vw,192px); height:clamp(140px,36vw,192px); border-radius:50%; border:1.5px solid var(--border); background:var(--card); display:flex; align-items:center; justify-content:center; cursor:pointer; user-select:none; -webkit-user-select:none; transition:border-color .2s,background .2s; position:relative; z-index:1; touch-action:none; margin-bottom:clamp(20px,5vw,28px); }
+  .mic-btn:hover { border-color:rgba(200,241,53,.4); }
+  .mic-btn.recording { border-color:#ff4f4f; background:rgba(255,79,79,.06); }
+  .mic-btn.recording::before { content:''; position:absolute; inset:-12px; border-radius:50%; border:1.5px solid rgba(255,79,79,.3); animation:ripple 1.2s ease-out infinite; }
+  .mic-btn.recording::after { content:''; position:absolute; inset:-26px; border-radius:50%; border:1px solid rgba(255,79,79,.15); animation:ripple 1.2s ease-out infinite .4s; }
+  @keyframes ripple { 0%{transform:scale(.95);opacity:1;} 100%{transform:scale(1.05);opacity:0;} }
+  .mic-btn svg { width:36%; height:36%; color:var(--muted); transition:color .2s; }
+  .mic-btn.recording svg { color:#ff4f4f; }
+  .rec-state { display:flex; flex-direction:column; align-items:center; gap:12px; width:100%; max-width:320px; opacity:0; pointer-events:none; transition:opacity .25s; margin-bottom:clamp(28px,7vw,44px); }
+  .rec-state.visible { opacity:1; pointer-events:all; }
+  .rec-timer { font-family:'Syne',-apple-system,sans-serif; font-size:clamp(32px,8vw,48px); font-weight:700; color:var(--accent); letter-spacing:2px; }
+  .live-wave { width:100%; height:44px; display:flex; align-items:center; justify-content:center; gap:3px; }
+  .live-wave span { display:inline-block; width:3.5px; border-radius:3px; background:var(--accent2); height:6px; transition:height .1s ease; }
+  .hold-label { font-size:13px; color:var(--muted); margin-bottom:clamp(32px,8vw,48px); transition:opacity .2s; }
+  .hold-label.hidden { opacity:0; pointer-events:none; }
+  .preview-stage { width:100%; max-width:480px; display:flex; flex-direction:column; gap:14px; opacity:0; pointer-events:none; transform:translateY(16px); transition:opacity .35s,transform .35s; padding-bottom:24px; }
+  .preview-stage.visible { opacity:1; pointer-events:all; transform:translateY(0); }
+  .preview-player { display:flex; align-items:center; gap:12px; background:var(--card); border:1px solid var(--border); border-radius:16px; padding:14px 16px; }
+  .play-btn { width:38px; height:38px; border-radius:50%; border:1.5px solid var(--border); background:none; color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:border-color .15s; }
+  .play-btn:hover { border-color:var(--accent); }
+  .preview-wave { flex:1; display:flex; align-items:center; gap:2.5px; height:32px; overflow:hidden; cursor:pointer; touch-action:none; }
+  .preview-wave span { display:inline-block; width:3px; border-radius:2px; background:var(--accent2); flex-shrink:0; opacity:.75; }
+  .preview-dur { font-family:'Syne',-apple-system,sans-serif; font-size:13px; color:var(--muted); flex-shrink:0; }
+  .title-input { width:100%; background:var(--card); border:1.5px solid var(--border); border-radius:14px; padding:16px 18px; color:var(--text); font-family:'DM Sans',-apple-system,sans-serif; font-size:15px; outline:none; transition:border-color .2s; }
+  .title-input::placeholder { color:var(--muted); }
+  .title-input:focus { border-color:rgba(200,241,53,.45); }
+  .preview-actions { display:flex; flex-direction:column; gap:10px; }
+  .btn-publish { background:var(--accent); color:#0c0c0e; border:none; border-radius:100px; padding:16px; font-family:'Syne',-apple-system,sans-serif; font-size:16px; font-weight:700; cursor:pointer; transition:transform .15s,box-shadow .15s; }
+  .btn-publish:hover { transform:scale(1.03); box-shadow:0 10px 32px rgba(200,241,53,.32); }
+  .btn-publish:active { transform:scale(0.97); }
+  .btn-publish:disabled { opacity:.6; cursor:not-allowed; transform:none; }
+  .btn-rerecord { background:none; border:1.5px solid var(--border); border-radius:100px; padding:14px; color:var(--muted); font-family:'Syne',-apple-system,sans-serif; font-size:15px; font-weight:600; cursor:pointer; transition:border-color .2s,color .2s; }
+  .btn-rerecord:hover { border-color:var(--muted); color:var(--text); }
+
+  /* NAVBAR */
+  .navbar { width:100%; max-width:480px; display:flex; justify-content:space-around; align-items:center; padding:12px 0 max(16px,env(safe-area-inset-bottom)); border-top:1px solid var(--border); position:fixed; bottom:0; left:50%; transform:translateX(-50%); background:var(--bg); z-index:100; }
+  .nav-btn { background:none; border:none; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center; padding:8px 24px; border-radius:10px; transition:color .2s; }
+  .nav-btn.active-nav { color:var(--accent); }
+  .nav-btn svg { width:24px; height:24px; }
+
+  /* S4 FEED */
+  #s4 { align-items:center; overflow-y:auto; }
+  .s4-inner { width:100%; max-width:600px; display:flex; flex-direction:column; padding:clamp(24px,5vw,48px) clamp(16px,4vw,28px) 100px; gap:12px; flex:1; }
+  .feed-title { font-family:'Syne',-apple-system,sans-serif; font-size:clamp(22px,5.5vw,32px); font-weight:800; letter-spacing:-.5px; margin-bottom:8px; }
+  .post-card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:16px; transition:border-color .2s; }
+  .post-card:hover { border-color:rgba(200,241,53,.2); }
+  .post-card.own-post { border-color:rgba(200,241,53,.4); background:linear-gradient(135deg,rgba(200,241,53,.04) 0%,var(--card) 60%); }
+  .own-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:var(--accent); font-weight:500; margin-bottom:6px; }
+  .own-badge::before { content:''; width:6px; height:6px; border-radius:50%; background:var(--accent); display:inline-block; }
+  .post-header { display:flex; align-items:flex-start; gap:12px; margin-bottom:12px; }
+  .avatar { width:36px; height:36px; border-radius:50%; background:var(--border); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .avatar svg { width:18px; height:18px; color:var(--muted); }
+  .post-meta { flex:1; min-width:0; }
+  .post-user { font-size:12px; color:var(--muted); margin-bottom:2px; }
+  .post-title-text { font-size:clamp(14px,3.5vw,16px); font-weight:500; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word; }
+  .audio-row { display:flex; align-items:center; gap:10px; }
+  .feed-play-btn { width:34px; height:34px; border-radius:50%; border:1.5px solid var(--border); background:none; color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; transition:border-color .15s; }
+  .feed-play-btn:hover { border-color:var(--accent); }
+  .feed-play-btn.playing { border-color:var(--accent); }
+  .feed-wave { flex:1; display:flex; align-items:center; gap:2px; height:30px; overflow:hidden; cursor:pointer; user-select:none; touch-action:none; }
+  .feed-wave span { display:inline-block; width:3px; border-radius:2px; background:var(--border); flex-shrink:0; opacity:.6; }
+  .feed-dur { font-family:'Syne',-apple-system,sans-serif; font-size:12px; color:var(--muted); flex-shrink:0; }
+  .comment-btn { background:none; border:none; color:var(--muted); cursor:pointer; display:flex; align-items:center; gap:6px; font-size:12px; font-family:'DM Sans',-apple-system,sans-serif; padding:8px 0 0; transition:color .2s; }
+  .comment-btn:hover { color:var(--text); }
+  .comment-btn svg { width:15px; height:15px; }
+  .comment-btn.open { color:var(--accent); }
+  .comment-drawer { overflow:hidden; max-height:0; transition:max-height .35s ease; }
+  .comment-drawer.open { max-height:600px; }
+  .comment-drawer-inner { padding-top:14px; border-top:1px solid var(--border); margin-top:12px; display:flex; flex-direction:column; gap:10px; }
+  .comment-item { display:flex; align-items:center; gap:10px; }
+  .comment-item .avatar { width:28px; height:28px; }
+  .comment-item .avatar svg { width:14px; height:14px; }
+  .comment-body { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+  .comment-nick { font-size:11px; color:var(--muted); padding-left:10px; }
+  .own-comment-nick { color:var(--accent); }
+  .comment-audio { display:flex; align-items:center; gap:8px; background:rgba(255,255,255,.04); border-radius:10px; padding:8px 10px; border:1px solid transparent; }
+  .own-comment-audio { }
+  .comment-play { width:26px; height:26px; border-radius:50%; border:1px solid var(--border); background:none; color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .comment-play:hover { border-color:var(--accent); }
+  .c-wave { flex:1; display:flex; align-items:center; gap:2px; height:18px; overflow:hidden; cursor:pointer; user-select:none; touch-action:none; }
+  .c-wave span { display:inline-block; width:3px; border-radius:2px; background:var(--border); flex-shrink:0; opacity:.6; }
+  .comment-dur { font-size:11px; color:var(--muted); flex-shrink:0; }
+  .add-comment-btn { display:flex; align-items:center; gap:8px; width:100%; background:none; border:1.5px dashed var(--border); border-radius:12px; padding:11px 14px; color:var(--muted); font-family:'DM Sans',-apple-system,sans-serif; font-size:13px; cursor:pointer; transition:border-color .2s,color .2s; }
+  .add-comment-btn:hover { border-color:var(--accent); color:var(--accent); }
+  .add-comment-btn.recording-comment { border-color:var(--accent2); border-style:solid; color:var(--accent2); }
+  .add-comment-btn.recording-ending { border-color:#ff4f4f; color:#ff4f4f; animation:blink 1s step-end infinite; }
+  @keyframes blink { 50%{opacity:.6;} }
+  .add-comment-btn svg { width:16px; height:16px; flex-shrink:0; }
+  .feed-navbar { width:100%; max-width:600px; display:flex; justify-content:space-around; align-items:center; padding:12px 0 max(16px,env(safe-area-inset-bottom)); border-top:1px solid var(--border); position:fixed; bottom:0; left:50%; transform:translateX(-50%); background:var(--bg); z-index:100; }
+
+  /* TOAST */
+  .toast { position:fixed; top:max(16px,env(safe-area-inset-top)); left:50%; transform:translateX(-50%) translateY(-200%); background:var(--accent); border-radius:100px; padding:12px 20px; display:flex; align-items:center; gap:10px; font-family:'DM Sans',-apple-system,sans-serif; font-size:14px; font-weight:500; color:#0c0c0e; z-index:1000; white-space:nowrap; box-shadow:0 8px 32px rgba(200,241,53,.35); transition:transform .45s cubic-bezier(.34,1.3,.64,1); pointer-events:none; }
+  .toast.show { transform:translateX(-50%) translateY(0); }
+  .toast.hide { transform:translateX(-50%) translateY(-200%); transition:transform .4s ease-in; }
+  .toast-check { width:16px; height:16px; flex-shrink:0; color:#0c0c0e; }
+
+  /* STATUS */
+  .status-msg { font-size:13px; color:var(--muted); text-align:center; min-height:20px; }
+  .spinner { display:inline-block; width:14px; height:14px; border:2px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle; margin-right:6px; }
+  @keyframes spin { to{transform:rotate(360deg);} }
+  .loading-card { text-align:center; color:var(--muted); font-size:14px; padding:32px; }
+  .btn-new-voice { display:inline-flex; align-items:center; gap:6px; background:var(--accent); color:#0c0c0e; border:none; border-radius:100px; padding:10px 20px; font-family:'Syne',-apple-system,sans-serif; font-size:14px; font-weight:700; cursor:pointer; flex-shrink:0; transition:transform .15s,box-shadow .15s; }
+  .btn-new-voice:hover { transform:scale(1.05); box-shadow:0 6px 24px rgba(200,241,53,.3); }
+  .btn-new-voice svg { width:15px; height:15px; }
+
+  /* NICKNAME MODAL */
+  .nick-overlay { position:fixed; inset:0; background:rgba(0,0,0,.82); z-index:500; display:flex; align-items:center; justify-content:center; padding:20px; opacity:0; pointer-events:none; transition:opacity .25s; }
+  .nick-overlay.show { opacity:1; pointer-events:all; }
+  .nick-card { background:var(--card); border:1px solid var(--border); border-radius:24px; padding:28px 22px; width:100%; max-width:340px; display:flex; flex-direction:column; gap:14px; animation:fadeUp .3s ease both; }
+  .nick-title { font-family:'Syne',sans-serif; font-size:20px; font-weight:800; letter-spacing:-.5px; }
+  .nick-sub { font-size:13px; color:var(--muted); line-height:1.65; }
+  .nick-field { display:flex; align-items:center; background:var(--bg); border:1.5px solid var(--border); border-radius:12px; padding:0 14px; gap:4px; transition:border-color .2s; }
+  .nick-field:focus-within { border-color:rgba(200,241,53,.45); }
+  .nick-at { font-size:16px; color:var(--accent); font-family:'Syne',sans-serif; font-weight:700; }
+  .nick-inp { background:none; border:none; outline:none; color:var(--text); font-family:'DM Sans',sans-serif; font-size:15px; padding:13px 0; width:100%; }
+  .nick-inp::placeholder { color:var(--muted); }
+  .nick-hint { font-size:12px; min-height:16px; }
+  .nick-hint.ok { color:var(--accent); }
+  .nick-hint.err { color:#ff6b6b; }
+  .nick-hint.spin { color:var(--muted); }
+  .btn-claim { background:var(--accent); color:#0c0c0e; border:none; border-radius:100px; padding:13px; font-family:'Syne',sans-serif; font-size:15px; font-weight:700; cursor:pointer; transition:transform .15s,opacity .15s; }
+  .btn-claim:disabled { opacity:.45; cursor:not-allowed; }
+  .btn-claim:not(:disabled):hover { transform:scale(1.03); }
+
+  /* DELETE BUTTON */
+  .del-btn { background:none; border:none; color:var(--muted); cursor:pointer; padding:12px 10px; line-height:0; border-radius:8px; transition:color .15s; flex-shrink:0; margin-left:auto; }
+  .del-btn:hover { color:#ff6b6b; }
+  .del-btn svg { width:13px; height:13px; display:block; }
+</style>
+</head>
+<body>
+
+<div class="page active" id="s1">
+  <div class="s1-inner">
+    <h1 class="wordmark">Voice<em>Pod</em></h1>
+    <p class="tagline">Your thoughts. Your experience.<br>Your voice. Your story.</p>
+    <div id="s1NickWrap" style="width:100%;max-width:280px;display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+      <div class="nick-field" style="background:var(--card);">
+        <span class="nick-at">@</span>
+        <input class="nick-inp" id="s1NickInp" placeholder="yourhandle" maxlength="20" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+      </div>
+      <div class="nick-hint" id="s1NickHint"></div>
+    </div>
+    <p id="s1Welcome" style="font-size:14px;color:var(--muted);margin-bottom:16px;display:none;"></p>
+    <button class="btn-start" id="startBtn" onclick="handleStart()" disabled>Start</button>
+  </div>
+</div>
+
+<div class="page" id="s2">
+  <div class="s2-inner">
+    <p class="s2-title">Share your voice</p>
+    <p class="s2-sub">What are you thinking about today?</p>
+    <div class="mic-btn" id="micBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/>
+        <line x1="12" y1="19" x2="12" y2="22"/><line x1="8" y1="22" x2="16" y2="22"/>
+      </svg>
+    </div>
+    <p class="hold-label" id="holdLabel">Tap to record</p>
+    <div class="rec-state" id="recState">
+      <div class="rec-timer" id="recTimer">00:00</div>
+      <div class="live-wave" id="liveWave"></div>
+    </div>
+    <div class="preview-stage" id="previewStage">
+      <div class="preview-player">
+        <button class="play-btn" id="playBtn" onclick="togglePlayPreview()">
+          <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor" width="14" height="14"><polygon points="5,3 19,12 5,21"/></svg>
+        </button>
+        <div class="preview-wave" id="previewWave"></div>
+        <span class="preview-dur" id="previewDur">0:00</span>
+      </div>
+      <div style="position:relative;">
+        <input class="title-input" id="titleInput" placeholder="Add a short title..." maxlength="60" style="padding-right:52px;">
+        <span id="titleCount" style="position:absolute;right:14px;top:50%;transform:translateY(-50%);font-size:11px;color:var(--muted);pointer-events:none;">0/60</span>
+      </div>
+      <div class="preview-actions">
+        <button class="btn-publish" id="publishBtn" onclick="publishAndGo()">Publish</button>
+        <button class="btn-rerecord" onclick="resetRecord()">Re-record</button>
+      </div>
+      <p class="status-msg" id="statusMsg"></p>
+    </div>
+  </div>
+  <nav class="navbar">
+    <button class="nav-btn" onclick="goTo('s4')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+    </button>
+    <button class="nav-btn active-nav">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+    </button>
+  </nav>
+</div>
+
+<div class="page" id="s4">
+  <div class="s4-inner">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <h2 class="feed-title" style="margin-bottom:0;">Feed</h2>
+      <button class="btn-new-voice" onclick="goTo('s2')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+        Record
+      </button>
+    </div>
+    <div id="feedCards"><div class="loading-card"><span class="spinner"></span>Loading posts...</div></div>
+  </div>
+  <nav class="feed-navbar">
+    <button class="nav-btn active-nav">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+    </button>
+    <button class="nav-btn" onclick="goTo('s2')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+    </button>
+  </nav>
+</div>
+
+<div class="nick-overlay" id="nickOverlay">
+  <div class="nick-card">
+    <div class="nick-title">Pick your handle</div>
+    <p class="nick-sub">Choose a unique @username — you'll use it to publish and manage your posts.</p>
+    <div class="nick-field">
+      <span class="nick-at">@</span>
+      <input class="nick-inp" id="nickInp" placeholder="yourhandle" maxlength="20" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+    </div>
+    <div class="nick-hint" id="nickHint"></div>
+    <button class="btn-claim" id="claimBtn" disabled onclick="claimNickname()">Claim handle</button>
+  </div>
+</div>
+
+<div class="toast" id="toast">
+  <svg class="toast-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
+  <span>Your voice published!</span>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { initializeFirestore, memoryLocalCache, collection, addDoc, getDocs, orderBy, query, limit, serverTimestamp, doc, getDoc, setDoc, deleteDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDjx-uAG2GVrJS8FTs1Yh5WSxCsGqEBH9w",
+  authDomain: "voicepod-d1609.firebaseapp.com",
+  projectId: "voicepod-d1609",
+  storageBucket: "voicepod-d1609.firebasestorage.app",
+  messagingSenderId: "408026137564",
+  appId: "1:408026137564:web:e553ed7a6080d8c94c8519"
+};
+const app = initializeApp(firebaseConfig);
+const db = initializeFirestore(app, { localCache: memoryLocalCache() });
+getDoc(doc(db, 'users', '__warmup__')).catch(() => {});
+const CLOUD_NAME = 'drmelo7f4';
+const UPLOAD_PRESET = 'voicepod_unsigned';
+
+// ── Persistent storage (cookies + localStorage) ──
+function setCookie(name, value) {
+  const exp = new Date(Date.now() + 365 * 864e5).toUTCString();
+  document.cookie = name + '=' + encodeURIComponent(value) + '; expires=' + exp + '; path=/; SameSite=Lax';
+}
+function getCookie(name) {
+  for (const c of document.cookie.split(';')) {
+    const t = c.trim();
+    if (t.startsWith(name + '=')) return decodeURIComponent(t.slice(name.length + 1));
+  }
+  return '';
+}
+function savePref(key, value) {
+  try { localStorage.setItem(key, value); } catch(e) {}
+  setCookie(key, value);
+}
+function loadPref(key) {
+  let v = '';
+  try { v = localStorage.getItem(key) || ''; } catch(e) {}
+  if (!v) v = getCookie(key);
+  if (v) { try { localStorage.setItem(key, v); } catch(e) {} setCookie(key, v); }
+  return v;
+}
+
+// ── User identity ──
+function genId() { return crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2)+Date.now().toString(36); }
+function escapeHTML(str) {
+  return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+let localUserId = loadPref('vp_uid') || (() => { const id = genId(); savePref('vp_uid', id); return id; })();
+let localNickname = loadPref('vp_nick') || '';
+let nickModalCallback = null;
+
+function showNickModal(onDone) {
+  nickModalCallback = onDone;
+  document.getElementById('nickOverlay').classList.add('show');
+  setTimeout(() => document.getElementById('nickInp').focus(), 120);
+}
+
+let nickCheckTimer = null;
+document.getElementById('nickInp').addEventListener('input', () => {
+  const val = document.getElementById('nickInp').value.toLowerCase().replace(/[^a-z0-9_]/g,'');
+  document.getElementById('nickInp').value = val;
+  const hint = document.getElementById('nickHint');
+  const btn = document.getElementById('claimBtn');
+  btn.disabled = true;
+  clearTimeout(nickCheckTimer);
+  if (val.length < 2) { hint.className='nick-hint'; hint.textContent = val.length ? 'Min 2 characters' : ''; return; }
+  hint.className='nick-hint spin'; hint.textContent='Checking...';
+  nickCheckTimer = setTimeout(async () => {
+    try {
+      const snap = await getDoc(doc(db,'users',val));
+      if (snap.exists()) {
+        hint.className='nick-hint err'; hint.textContent='@'+val+' is taken';
+      } else {
+        hint.className='nick-hint ok'; hint.textContent='@'+val+' is available ✓';
+        btn.textContent = 'Claim @'+val;
+        btn.disabled = false;
+      }
+    } catch(e) { hint.className='nick-hint err'; hint.textContent='Check failed, try again'; }
+  }, 500);
+});
+
+// ── S1 nickname init ──
+(function() {
+  const startBtn = document.getElementById('startBtn');
+  const wrap = document.getElementById('s1NickWrap');
+  const welcome = document.getElementById('s1Welcome');
+  if (localNickname) {
+    wrap.style.display = 'none';
+    welcome.style.display = 'block';
+    welcome.textContent = 'Welcome back, @' + localNickname;
+    startBtn.disabled = false;
+  }
+})();
+
+let s1CheckTimer = null;
+document.getElementById('s1NickInp').addEventListener('input', () => {
+  const val = document.getElementById('s1NickInp').value.toLowerCase().replace(/[^a-z0-9_]/g,'');
+  document.getElementById('s1NickInp').value = val;
+  const hint = document.getElementById('s1NickHint');
+  const startBtn = document.getElementById('startBtn');
+  startBtn.disabled = true;
+  clearTimeout(s1CheckTimer);
+  if (val.length < 2) { hint.className='nick-hint'; hint.textContent = val.length ? 'Min 2 characters' : ''; return; }
+  hint.className='nick-hint spin'; hint.textContent='Checking...';
+  s1CheckTimer = setTimeout(async () => {
+    try {
+      const snap = await getDoc(doc(db,'users',val));
+      if (snap.exists()) {
+        hint.className='nick-hint err'; hint.textContent='@'+val+' is already taken';
+        startBtn.disabled = true;
+      } else {
+        hint.className='nick-hint ok'; hint.textContent='@'+val+' is available ✓';
+        startBtn.textContent = 'Start';
+        startBtn.disabled = false;
+      }
+    } catch(e) { hint.className='nick-hint err'; hint.textContent='Check failed, try again'; }
+  }, 500);
+});
+
+window.handleStart = async function() {
+  if (localNickname) { goTo('s2'); return; }
+  const val = document.getElementById('s1NickInp').value.trim();
+  const startBtn = document.getElementById('startBtn');
+  const hint = document.getElementById('s1NickHint');
+  startBtn.disabled = true;
+  startBtn.textContent = 'Claiming...';
+  try {
+    const userRef = doc(db,'users',val);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      hint.className='nick-hint err'; hint.textContent='@'+val+' was just taken, try another';
+      startBtn.disabled = false; startBtn.textContent = 'Start';
+      return;
+    }
+    await setDoc(userRef, { userId: localUserId, createdAt: serverTimestamp() });
+    localNickname = val;
+    savePref('vp_nick', val);
+    goTo('s4');
+  } catch(e) {
+    hint.className='nick-hint err'; hint.textContent='Error: '+e.message;
+    startBtn.disabled = false; startBtn.textContent = 'Start';
+  }
+}
+
+window.claimNickname = async function() {
+  const val = document.getElementById('nickInp').value.trim();
+  const btn = document.getElementById('claimBtn');
+  const hint = document.getElementById('nickHint');
+  btn.disabled = true; btn.textContent = 'Claiming...';
+  try {
+    const userRef = doc(db,'users',val);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) { hint.className='nick-hint err'; hint.textContent='@'+val+' was just taken, try another'; btn.disabled=false; btn.textContent='Claim @'+val; return; }
+    await setDoc(userRef, { userId: localUserId, createdAt: serverTimestamp() });
+    localNickname = val;
+    savePref('vp_nick', val);
+    document.getElementById('nickOverlay').classList.remove('show');
+    if (nickModalCallback) { const cb = nickModalCallback; nickModalCallback = null; cb(); }
+  } catch(e) { hint.className='nick-hint err'; hint.textContent='Error: '+e.message; btn.disabled=false; }
+}
+
+const MAX_POST_SEC = 180;    // 3 min для постов
+const MAX_COMMENT_SEC = 90;  // 90 сек для комментариев
+
+// ── State ──
+let mediaRecorder = null, audioChunks = [], recordedBlob = null;
+let previewAudio = null, previewProgressInterval = null;
+let isRecording = false, hasRecording = false;
+let recInterval = null, waveInterval = null, seconds = 0;
+
+// One global audio player — only one thing plays at a time
+let activeAudio = null;
+let activeProgressInterval = null;
+let activeWaveEl = null;
+let activeBtn = null;
+let activeCardEl = null;
+let activeKnownDuration = null;
+let activeDurEl = null;
+let activeDurOriginal = '';
+
+function stopActive() {
+  if (activeAudio) { activeAudio.pause(); activeAudio = null; }
+  clearInterval(activeProgressInterval);
+  if (activeWaveEl) resetWaveProgress(activeWaveEl);
+  if (activeBtn) {
+    activeBtn.querySelector('svg').innerHTML = '<polygon points="5,3 19,12 5,21"/>';
+    activeBtn.classList.remove('playing');
+  }
+  if (activeCardEl) activeCardEl.classList.remove('playing');
+  activeWaveEl = null; activeBtn = null; activeCardEl = null;
+  activeKnownDuration = null;
+  if (activeDurEl) { activeDurEl.textContent = activeDurOriginal; }
+  activeDurEl = null; activeDurOriginal = '';
+}
+
+function parseDuration(str) {
+  if (!str) return null;
+  const parts = str.trim().split(':');
+  return parts.length === 2 ? parseInt(parts[0]) * 60 + parseInt(parts[1]) : null;
+}
+
+function updateWaveProgress(waveEl, audio, knownDuration) {
+  if (!audio || !waveEl) return;
+  const bars = waveEl.querySelectorAll('span');
+  const dur = (isFinite(audio.duration) && audio.duration > 0) ? audio.duration : (knownDuration > 0 ? knownDuration : 0);
+  if (!dur) return;
+  const ratio = Math.min(1, audio.currentTime / dur);
+  const filled = Math.floor(bars.length * ratio);
+  bars.forEach((b, i) => {
+    b.style.background = i < filled ? 'var(--accent)' : 'var(--border)';
+    b.style.opacity = i < filled ? '1' : '0.6';
+  });
+}
+
+function resetWaveProgress(waveEl) {
+  if (!waveEl) return;
+  waveEl.querySelectorAll('span').forEach(b => { b.style.background = ''; b.style.opacity = ''; });
+}
+
+function updateDurDisplay() {
+  if (!activeDurEl || !activeKnownDuration || !activeAudio) return;
+  const rem = Math.max(0, activeKnownDuration - activeAudio.currentTime);
+  activeDurEl.textContent = Math.floor(rem / 60) + ':' + String(Math.floor(rem % 60)).padStart(2, '0');
+}
+
+function initScrub(waveEl, getAudio) {
+  let dragging = false;
+  function scrubTo(clientX) {
+    const audio = getAudio();
+    if (!audio) return;
+    if (activeWaveEl && waveEl !== activeWaveEl) return;
+    const rect = waveEl.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    audio.pause();
+    clearInterval(activeProgressInterval);
+    audio.currentTime = ratio * audio.duration;
+    if (activeBtn) { activeBtn.querySelector('svg').innerHTML = '<polygon points="5,3 19,12 5,21"/>'; activeBtn.classList.remove('playing'); }
+    if (activeCardEl) activeCardEl.classList.remove('playing');
+    updateWaveProgress(waveEl, audio);
+    updateDurDisplay();
+  }
+  waveEl.addEventListener('mousedown', e => { e.preventDefault(); dragging = true; scrubTo(e.clientX); });
+  window.addEventListener('mousemove', e => { if (dragging) scrubTo(e.clientX); });
+  window.addEventListener('mouseup', () => { dragging = false; });
+  waveEl.addEventListener('touchstart', e => { dragging = true; scrubTo(e.touches[0].clientX); }, { passive: true });
+  waveEl.addEventListener('touchmove', e => { if (dragging) { e.preventDefault(); scrubTo(e.touches[0].clientX); } }, { passive: false });
+  waveEl.addEventListener('touchend', () => { dragging = false; });
+}
+
+// ── Navigation ──
+window.goTo = function(id) {
+  if (id === 's1' && localNickname) id = 's4';
+  stopActive();
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+  if (id === 's2') resetRecord();
+  if (id === 's4') loadFeed();
+  if (id === 's1' && !localNickname) {
+    const startBtn = document.getElementById('startBtn');
+    startBtn.textContent = 'Start';
+    startBtn.disabled = true;
+    document.getElementById('s1NickHint').className = 'nick-hint';
+    document.getElementById('s1NickHint').textContent = '';
+    document.getElementById('s1NickInp').value = '';
+  }
+}
+
+// ── Helpers ──
+function buildWaveBars(container, count, maxH) {
+  container.innerHTML = '';
+  for (let i = 0; i < count; i++) {
+    const b = document.createElement('span');
+    b.style.height = (3 + Math.random() * (maxH || 22)) + 'px';
+    container.appendChild(b);
+  }
+}
+
+const liveWaveEl = document.getElementById('liveWave');
+for (let i = 0; i < 38; i++) { const b = document.createElement('span'); liveWaveEl.appendChild(b); }
+const liveBars = liveWaveEl.querySelectorAll('span');
+
+// ── Recording ──
+const micBtn = document.getElementById('micBtn');
+const holdLabel = document.getElementById('holdLabel');
+const recState = document.getElementById('recState');
+const recTimerEl = document.getElementById('recTimer');
+const previewStage = document.getElementById('previewStage');
+document.getElementById('titleInput').addEventListener('input', () => {
+  const len = document.getElementById('titleInput').value.length;
+  const counter = document.getElementById('titleCount');
+  counter.textContent = len + '/60';
+  counter.style.color = len >= 55 ? '#ff6b6b' : 'var(--muted)';
+});
+const previewWaveEl = document.getElementById('previewWave');
+const previewDurEl = document.getElementById('previewDur');
+
+async function startRec() {
+  if (isRecording || hasRecording) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    isRecording = true; seconds = 0; audioChunks = [];
+    const formats = ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'];
+    const supported = formats.find(f => MediaRecorder.isTypeSupported(f)) || '';
+    mediaRecorder = supported ? new MediaRecorder(stream, { mimeType: supported, audioBitsPerSecond: 64000 }) : new MediaRecorder(stream, { audioBitsPerSecond: 64000 });
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      recordedBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
+      previewAudio = new Audio(URL.createObjectURL(recordedBlob));
+      stream.getTracks().forEach(t => t.stop());
+    };
+    mediaRecorder.start();
+    micBtn.classList.add('recording');
+    recState.classList.add('visible');
+    holdLabel.classList.add('hidden');
+    recInterval = setInterval(() => {
+      seconds++;
+      recTimerEl.textContent = String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0');
+      if (seconds >= MAX_POST_SEC - 10) recTimerEl.style.color = '#ff4f4f';
+      if (seconds >= MAX_POST_SEC) stopRec();
+    }, 1000);
+    waveInterval = setInterval(() => {
+      liveBars.forEach(b => { b.style.height=(4+Math.random()*36)+'px'; b.style.background=Math.random()>.5?'var(--accent2)':'var(--accent)'; });
+    }, 80);
+  } catch(e) {
+      if (e.name === 'NotAllowedError') {
+        alert('Microphone access denied.\n\nClick the microphone icon in your browser address bar and choose "Allow", then reload the page.');
+      } else if (e.name === 'NotFoundError') {
+        alert('No microphone found. Please connect a microphone and try again.');
+      } else if (e.name === 'NotReadableError') {
+        alert('Microphone is in use by another app. Close other apps using the mic and try again.');
+      } else {
+        alert('Could not access microphone: ' + e.message);
+      }
+    }
+}
+
+function stopRec() {
+  if (!isRecording) return;
+  isRecording = false; hasRecording = true;
+  clearInterval(recInterval); clearInterval(waveInterval);
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  micBtn.classList.remove('recording');
+  recState.classList.remove('visible');
+  recTimerEl.style.color = '';
+  micBtn.style.display = 'none';
+  holdLabel.style.display = 'none';
+  const m = String(Math.floor(seconds/60)).padStart(2,'0');
+  const s = String(seconds%60).padStart(2,'0');
+  previewDurEl.textContent = m+':'+s;
+  setTimeout(() => {
+    buildWaveBars(previewWaveEl, Math.floor(previewWaveEl.offsetWidth/5.5)||52, 24);
+    initScrub(previewWaveEl, () => previewAudio);
+    previewStage.classList.add('visible');
+  }, 200);
+}
+
+micBtn.addEventListener('click', () => { if (isRecording) stopRec(); else startRec(); });
+
+window.resetRecord = function() {
+  hasRecording = false; isRecording = false;
+  clearInterval(recInterval); clearInterval(waveInterval);
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') { try { mediaRecorder.stop(); } catch(e){} }
+  if (previewAudio) { previewAudio.pause(); previewAudio = null; }
+  clearInterval(previewProgressInterval);
+  recordedBlob = null; seconds = 0;
+  micBtn.style.display = ''; micBtn.classList.remove('recording');
+  holdLabel.style.display = ''; holdLabel.classList.remove('hidden');
+  recState.classList.remove('visible');
+  previewStage.classList.remove('visible');
+  recTimerEl.textContent = '00:00'; recTimerEl.style.color = '';
+  liveBars.forEach(b => { b.style.height='6px'; });
+  document.getElementById('titleInput').value = '';
+  document.getElementById('titleCount').textContent = '0/60';
+  document.getElementById('titleCount').style.color = '';
+  document.getElementById('statusMsg').textContent = '';
+  const btn = document.getElementById('publishBtn');
+  btn.disabled = false; btn.textContent = 'Publish';
+  const pi = document.getElementById('playIcon');
+  if (pi) pi.innerHTML = '<polygon points="5,3 19,12 5,21"/>';
+}
+
+window.togglePlayPreview = function() {
+  if (!previewAudio) return;
+  const icon = document.getElementById('playIcon');
+  if (previewAudio.paused) {
+    previewAudio.play();
+    icon.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+    clearInterval(previewProgressInterval);
+    previewProgressInterval = setInterval(() => {
+      if (!previewAudio || previewAudio.paused) { clearInterval(previewProgressInterval); return; }
+      const bars = previewWaveEl.querySelectorAll('span');
+      const dur = seconds > 0 ? seconds : (isFinite(previewAudio.duration) ? previewAudio.duration : 0);
+      const ratio = dur > 0 ? Math.min(1, previewAudio.currentTime / dur) : 0;
+      const filled = Math.floor(bars.length * ratio);
+      bars.forEach((b,i) => { b.style.background=i<filled?'var(--accent)':'var(--accent2)'; b.style.opacity=i<filled?'1':'0.75'; });
+    }, 80);
+    previewAudio.onended = () => {
+      clearInterval(previewProgressInterval);
+      icon.innerHTML = '<polygon points="5,3 19,12 5,21"/>';
+      previewWaveEl.querySelectorAll('span').forEach(b => { b.style.background='var(--accent2)'; b.style.opacity='0.75'; });
+    };
+  } else {
+    previewAudio.pause();
+    clearInterval(previewProgressInterval);
+    icon.innerHTML = '<polygon points="5,3 19,12 5,21"/>';
+  }
+}
+
+// ── Upload ──
+async function uploadAudio(blob) {
+  if (blob.size > 10 * 1024 * 1024) throw new Error('Recording is too large (max 10 MB). Please record a shorter clip.');
+  const mimeType = blob.type || 'audio/webm';
+  let ext = 'webm';
+  if (mimeType.includes('mp4')) ext = 'mp4';
+  else if (mimeType.includes('ogg')) ext = 'ogg';
+  const formData = new FormData();
+  formData.append('file', blob, 'audio.'+ext);
+  formData.append('upload_preset', UPLOAD_PRESET);
+  formData.append('resource_type', 'video');
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`, { method:'POST', body:formData });
+  const data = await res.json();
+  if (!data.secure_url) throw new Error(data.error?.message || 'Upload failed');
+  return { url: data.secure_url, duration: Math.round(data.duration || 0) };
+}
+
+// ── Publish ──
+window.publishAndGo = async function() {
+  if (!recordedBlob) return;
+  const title = document.getElementById('titleInput').value.trim() || 'Untitled voice';
+  const btn = document.getElementById('publishBtn');
+  const status = document.getElementById('statusMsg');
+  btn.disabled = true; btn.textContent = 'Uploading...';
+  status.innerHTML = '<span class="spinner"></span>Uploading audio...';
+  try {
+    const { url, duration } = await uploadAudio(recordedBlob);
+    const finalDuration = duration > 0 ? duration : seconds;
+    const m = String(Math.floor(finalDuration/60)).padStart(2,'0');
+    const s = String(finalDuration%60).padStart(2,'0');
+    await addDoc(collection(db,'posts'), { title, audioUrl:url, duration:m+':'+s, userId:localUserId, nickname:localNickname, createdAt:serverTimestamp(), comments:[] });
+    goTo('s4');
+    const toast = document.getElementById('toast');
+    toast.classList.remove('hide');
+    requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
+    setTimeout(() => { toast.classList.remove('show'); toast.classList.add('hide'); }, 3200);
+  } catch(e) {
+    status.textContent = 'Error: '+e.message;
+    btn.disabled = false; btn.textContent = 'Publish';
+  }
+}
+
+// ── Feed ──
+async function loadFeed() {
+  const wrap = document.getElementById('feedCards');
+  wrap.innerHTML = '<div class="loading-card"><span class="spinner"></span>Loading posts...</div>';
+  try {
+    const snap = await getDocs(query(collection(db,'posts'), orderBy('createdAt','desc'), limit(20)));
+    if (snap.empty) { wrap.innerHTML = '<div class="loading-card">No posts yet. Be the first!</div>'; return; }
+    wrap.innerHTML = '';
+    snap.forEach(docSnap => renderCard(wrap, docSnap.id, docSnap.data()));
+  } catch(e) { wrap.innerHTML = '<div class="loading-card">Error loading. Try again.</div>'; }
+}
+
+function renderCard(wrap, postId, post) {
+  const card = document.createElement('div');
+  const isOwn = post.userId === localUserId;
+  card.className = 'post-card' + (isOwn ? ' own-post' : '');
+  card.id = 'card_'+postId;
+  const comments = post.comments || [];
+  const delSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  let commentsHTML = comments.map((c,ci) => {
+    const isOwnC = c.userId === localUserId;
+    const cDel = isOwnC ? `<button class="del-btn" title="Delete comment" data-url="${c.audioUrl}" onclick="deleteComment('${postId}',this.dataset.url,this.closest('.comment-item'))">${delSvg}</button>` : '';
+    return `
+    <div class="comment-item">
+      <div class="avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+      <div class="comment-body">
+        <div class="comment-nick${isOwnC ? ' own-comment-nick' : ''}">@${escapeHTML(c.nickname||'anon')}</div>
+        <div class="comment-audio${isOwnC ? ' own-comment-audio' : ''}">
+          <button class="comment-play" id="cplay_${postId}_${ci}" data-url="${escapeHTML(c.audioUrl)}" data-dur="${parseDuration(c.duration||'0:00')||0}" onclick="playAudio(this, document.getElementById('cw_${postId}_${ci}'), this.dataset.url, null)">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="9" height="9"><polygon points="5,3 19,12 5,21"/></svg>
+          </button>
+          <div class="c-wave" id="cw_${postId}_${ci}"></div>
+          <span class="comment-dur">${escapeHTML(c.duration||'0:00')}</span>
+        </div>
+      </div>
+      ${cDel}
+    </div>`;
+  }).join('');
+  const commentLabel = String(comments.length);
+  const postDel = isOwn ? `<button class="del-btn" title="Delete post" onclick="deletePost('${postId}',this.closest('.post-card'))">${delSvg}</button>` : '';
+  card.innerHTML = `
+    ${isOwn ? '<div class="own-badge">Your post</div>' : ''}
+    <div class="post-header">
+      <div class="avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+      <div class="post-meta"><div class="post-user">@${escapeHTML(post.nickname||'anon')}</div><div class="post-title-text">${escapeHTML(post.title)}</div></div>
+      ${postDel}
+    </div>
+    <div class="audio-row">
+      <button class="feed-play-btn" id="fplay_${postId}" data-url="${escapeHTML(post.audioUrl)}" data-dur="${parseDuration(post.duration||'0:00')||0}" onclick="playAudio(this, document.getElementById('fw_${postId}'), this.dataset.url, document.getElementById('card_${postId}'))">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><polygon points="5,3 19,12 5,21"/></svg>
+      </button>
+      <div class="feed-wave" id="fw_${postId}"></div>
+      <span class="feed-dur">${escapeHTML(post.duration||'0:00')}</span>
+    </div>
+    <button class="comment-btn" id="cbtn_${postId}" onclick="toggleComments('${postId}')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      ${commentLabel}
+    </button>
+    <div class="comment-drawer" id="cd_${postId}">
+      <div class="comment-drawer-inner">
+        <div id="clist_${postId}">${commentsHTML}</div>
+        <button class="add-comment-btn" id="rcbtn_${postId}" onclick="toggleCommentRec('${postId}')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+          Add your audio opinion
+        </button>
+      </div>
+    </div>`;
+  wrap.appendChild(card);
+  requestAnimationFrame(() => {
+    const fw = document.getElementById('fw_'+postId);
+    if (fw) { buildWaveBars(fw, Math.floor(fw.offsetWidth/5)||50, 22); initScrub(fw, () => activeAudio); }
+    comments.forEach((_,ci) => {
+      const cw = document.getElementById('cw_'+postId+'_'+ci);
+      if (cw) { buildWaveBars(cw, Math.floor(cw.offsetWidth/5)||28, 12); initScrub(cw, () => activeAudio); }
+    });
+  });
+}
+
+// ── Single unified play function ──
+window.playAudio = function(btn, waveEl, url, cardEl) {
+  const knownDuration = parseFloat(btn.dataset.dur) || null;
+  const durEl = btn.parentElement.querySelector('.feed-dur, .comment-dur');
+
+  // Same audio — toggle pause/play
+  if (activeBtn === btn && activeAudio) {
+    if (activeAudio.paused) {
+      activeAudio.play();
+      btn.querySelector('svg').innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+      btn.classList.add('playing');
+      if (cardEl) cardEl.classList.add('playing');
+      activeProgressInterval = setInterval(() => { updateWaveProgress(waveEl, activeAudio, activeKnownDuration); updateDurDisplay(); }, 80);
+    } else {
+      activeAudio.pause();
+      clearInterval(activeProgressInterval);
+      btn.querySelector('svg').innerHTML = '<polygon points="5,3 19,12 5,21"/>';
+      btn.classList.remove('playing');
+      if (cardEl) cardEl.classList.remove('playing');
+    }
+    return;
+  }
+  // Stop previous
+  stopActive();
+  // Play new
+  activeAudio = new Audio(url);
+  activeBtn = btn;
+  activeWaveEl = waveEl;
+  activeCardEl = cardEl;
+  activeKnownDuration = knownDuration;
+  activeDurEl = durEl;
+  activeDurOriginal = durEl ? durEl.textContent.trim() : '';
+  activeAudio.play();
+  btn.querySelector('svg').innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+  btn.classList.add('playing');
+  if (cardEl) cardEl.classList.add('playing');
+  activeProgressInterval = setInterval(() => { updateWaveProgress(waveEl, activeAudio, activeKnownDuration); updateDurDisplay(); }, 80);
+  activeAudio.onended = () => {
+    clearInterval(activeProgressInterval);
+    btn.querySelector('svg').innerHTML = '<polygon points="5,3 19,12 5,21"/>';
+    btn.classList.remove('playing');
+    if (cardEl) cardEl.classList.remove('playing');
+    if (activeDurEl) { activeDurEl.textContent = activeDurOriginal; }
+    const _waveEl = activeWaveEl;
+    activeAudio = null; activeBtn = null; activeWaveEl = null; activeCardEl = null;
+    activeKnownDuration = null; activeDurEl = null; activeDurOriginal = '';
+    resetWaveProgress(_waveEl);
+  };
+}
+
+window.toggleComments = function(postId) {
+  const drawer = document.getElementById('cd_'+postId);
+  const btn = document.getElementById('cbtn_'+postId);
+  drawer.classList.toggle('open');
+  btn.classList.toggle('open', drawer.classList.contains('open'));
+}
+
+// ── Comment recording ──
+let commentRecorders = {};
+window.toggleCommentRec = async function(postId) {
+  const btn = document.getElementById('rcbtn_'+postId);
+  if (commentRecorders[postId]) {
+    const { recorder, stream, chunks, startTime, waveInt, secRef } = commentRecorders[postId];
+    clearInterval(waveInt);
+    recorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(chunks, { type: recorder.mimeType });
+      btn.textContent = 'Uploading...'; btn.classList.remove('recording-comment', 'recording-ending'); btn.disabled = true;
+      try {
+        const { url, duration } = await uploadAudio(blob);
+        const finalDuration = duration > 0 ? duration : secRef.value;
+        const m = String(Math.floor(finalDuration/60)).padStart(2,'0'), s = String(finalDuration%60).padStart(2,'0');
+        const durStr = m+':'+s;
+        await updateDoc(doc(db,'posts',postId), { comments: arrayUnion({ audioUrl:url, duration:durStr, userId:localUserId, nickname:localNickname }) });
+        const clist = document.getElementById('clist_'+postId);
+        const ci = clist.children.length;
+        const item = document.createElement('div');
+        item.className = 'comment-item';
+        const delSvgNew = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+        item.innerHTML = `
+          <div class="avatar" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+          <div class="comment-body">
+            <div class="comment-nick own-comment-nick">@${escapeHTML(localNickname||'anon')}</div>
+            <div class="comment-audio own-comment-audio">
+              <button class="comment-play" id="cplay_${postId}_new${ci}" data-url="${escapeHTML(url)}" data-dur="${finalDuration}" onclick="playAudio(this, document.getElementById('cw_${postId}_new${ci}'), this.dataset.url, null)">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="9" height="9"><polygon points="5,3 19,12 5,21"/></svg>
+              </button>
+              <div class="c-wave" id="cw_${postId}_new${ci}"></div>
+              <span class="comment-dur">${durStr}</span>
+            </div>
+          </div>
+          <button class="del-btn" title="Delete comment" data-url="${url}" onclick="deleteComment('${postId}',this.dataset.url,this.closest('.comment-item'))">${delSvgNew}</button>`;
+        clist.appendChild(item);
+        requestAnimationFrame(() => {
+          const cw = document.getElementById(`cw_${postId}_new${ci}`);
+          if (cw) { buildWaveBars(cw, Math.floor(cw.offsetWidth/5)||28, 12); initScrub(cw, () => activeAudio); }
+        });
+        const cbtn = document.getElementById('cbtn_'+postId);
+        const count = clist.children.length;
+        const svgHTML = cbtn.querySelector('svg').outerHTML;
+        cbtn.innerHTML = svgHTML + ' ' + count;
+      } catch(e) { console.error(e); }
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg> Add your audio opinion';
+      btn.disabled = false;
+      delete commentRecorders[postId];
+    };
+    recorder.stop();
+  } else {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks = [];
+      const formats = ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'];
+      const supported = formats.find(f => MediaRecorder.isTypeSupported(f)) || '';
+      const recorder = supported ? new MediaRecorder(stream, { mimeType: supported, audioBitsPerSecond: 64000 }) : new MediaRecorder(stream, { audioBitsPerSecond: 64000 });
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.start();
+      const secRef = { value: 0 };
+      const micSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>`;
+      const waveInt = setInterval(() => {
+        secRef.value++;
+        if (secRef.value >= MAX_COMMENT_SEC) { toggleCommentRec(postId); return; }
+        const nearEnd = secRef.value >= MAX_COMMENT_SEC - 5;
+        btn.classList.toggle('recording-ending', nearEnd);
+        const label = nearEnd
+          ? `${MAX_COMMENT_SEC - secRef.value}s left — tap to stop`
+          : `${String(Math.floor(secRef.value/60)).padStart(2,'0')}:${String(secRef.value%60).padStart(2,'0')} — tap to stop`;
+        btn.innerHTML = micSvg + ' Recording ' + label;
+      }, 1000);
+      btn.classList.add('recording-comment');
+      commentRecorders[postId] = { recorder, stream, chunks, startTime: Date.now(), waveInt, secRef };
+    } catch(e) { alert('Microphone access denied.'); }
+  }
+}
+
+// ── Delete ──
+window.deletePost = async function(postId, cardEl) {
+  if (!confirm('Delete this post? This cannot be undone.')) return;
+  try {
+    await deleteDoc(doc(db,'posts',postId));
+    if (activeBtn && cardEl.contains(activeBtn)) stopActive();
+    cardEl.remove();
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+window.deleteComment = async function(postId, audioUrl, itemEl) {
+  if (!confirm('Delete this comment? This cannot be undone.')) return;
+  try {
+    const postRef = doc(db,'posts',postId);
+    const snap = await getDoc(postRef);
+    const newComments = (snap.data().comments||[]).filter(c => c.audioUrl !== audioUrl);
+    await updateDoc(postRef, { comments: newComments });
+    if (activeWaveEl && itemEl.contains(activeWaveEl)) stopActive();
+    itemEl.remove();
+    const clist = document.getElementById('clist_'+postId);
+    const cbtn = document.getElementById('cbtn_'+postId);
+    const count = clist.children.length;
+    const svgHTML = cbtn.querySelector('svg').outerHTML;
+    cbtn.innerHTML = svgHTML + ' ' + count;
+  } catch(e) { alert('Error: '+e.message); }
+}
+
+if (localNickname) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('s4').classList.add('active');
+  loadFeed();
+}
+</script>
+</body>
+</html>
