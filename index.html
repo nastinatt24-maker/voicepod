@@ -146,6 +146,8 @@
   .toast.show { transform:translateX(-50%) translateY(0); }
   .toast.hide { transform:translateX(-50%) translateY(-200%); transition:transform .4s ease-in; }
   .toast-check { width:16px; height:16px; flex-shrink:0; color:#0c0c0e; }
+  .limit-toast { position:fixed; bottom:max(88px,calc(72px + env(safe-area-inset-bottom))); left:50%; transform:translateX(-50%) translateY(20px); background:var(--card); border:1.5px solid rgba(255,107,107,.55); border-radius:16px; padding:14px 18px; max-width:min(320px,calc(100vw - 40px)); width:100%; font-family:'DM Sans',-apple-system,sans-serif; font-size:13px; color:var(--text); line-height:1.55; z-index:999; opacity:0; transition:opacity .3s,transform .3s cubic-bezier(.34,1.2,.64,1); pointer-events:none; text-align:center; box-shadow:0 8px 32px rgba(0,0,0,.4); }
+  .limit-toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
 
   /* STATUS */
   .status-msg { font-size:13px; color:var(--muted); text-align:center; min-height:20px; }
@@ -164,6 +166,7 @@
   .nick-sub { font-size:13px; color:var(--muted); line-height:1.65; }
   .nick-field { display:flex; align-items:center; background:var(--bg); border:1.5px solid var(--border); border-radius:12px; padding:0 14px; gap:4px; transition:border-color .2s; }
   .nick-field:focus-within { border-color:rgba(200,241,53,.45); }
+  .nick-field.error, .nick-field.error:focus-within { border-color:#ff6b6b; }
   .nick-at { font-size:16px; color:var(--accent); font-family:'Syne',sans-serif; font-weight:700; }
   .nick-inp { background:none; border:none; outline:none; color:var(--text); font-family:'DM Sans',sans-serif; font-size:15px; padding:13px 0; width:100%; }
   .nick-inp::placeholder { color:var(--muted); }
@@ -195,7 +198,7 @@
       <div class="nick-hint" id="s1NickHint"></div>
     </div>
     <p id="s1Welcome" style="font-size:14px;color:var(--muted);margin-bottom:16px;display:none;"></p>
-    <button class="btn-start" id="startBtn" onclick="handleStart()" disabled>Start</button>
+    <button class="btn-start" id="startBtn" onclick="handleStart()">Start</button>
   </div>
 </div>
 
@@ -282,6 +285,7 @@
   <svg class="toast-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20,6 9,17 4,12"/></svg>
   <span>Your voice published!</span>
 </div>
+<div class="limit-toast" id="limitToast"></div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
@@ -408,6 +412,7 @@ let s1CheckTimer = null;
 document.getElementById('s1NickInp').addEventListener('input', () => {
   const val = document.getElementById('s1NickInp').value.toLowerCase().replace(/[^a-z0-9_]/g,'');
   document.getElementById('s1NickInp').value = val;
+  document.getElementById('s1NickInp').closest('.nick-field').classList.remove('error');
   const hint = document.getElementById('s1NickHint');
   const startBtn = document.getElementById('startBtn');
   startBtn.disabled = true;
@@ -451,6 +456,14 @@ window.handleStart = async function() {
   const val = document.getElementById('s1NickInp').value.trim();
   const startBtn = document.getElementById('startBtn');
   const hint = document.getElementById('s1NickHint');
+  const nickField = document.getElementById('s1NickInp').closest('.nick-field');
+  if (!val) {
+    nickField.classList.add('error');
+    hint.className = 'nick-hint err';
+    hint.textContent = 'Enter a handle to continue';
+    document.getElementById('s1NickInp').focus();
+    return;
+  }
   startBtn.disabled = true;
   startBtn.textContent = 'Claiming...';
   if (containsProfanity(val)) { hint.className='nick-hint err'; hint.textContent='This handle is not allowed'; startBtn.disabled = false; startBtn.textContent = 'Start'; return; }
@@ -586,8 +599,24 @@ function initScrub(waveEl, getAudio) {
 }
 
 // ── Navigation ──
+function showLimitToast() {
+  const t = document.getElementById('limitToast');
+  t.textContent = 'You\'ve used all 3 posts. Delete one to record a new voice.';
+  t.classList.remove('show');
+  requestAnimationFrame(() => requestAnimationFrame(() => t.classList.add('show')));
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
 window.goTo = function(id) {
   if (id === 's1' && localNickname) id = 's4';
+  if (id === 's2') {
+    const hint = document.getElementById('postLimitHint');
+    if (hint && parseInt(hint.dataset.count || '0') >= 3) {
+      showLimitToast();
+      return;
+    }
+  }
   stopActive();
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -635,6 +664,7 @@ const previewDurEl = document.getElementById('previewDur');
 
 async function startRec() {
   if (isRecording || hasRecording) return;
+  stopActive();
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     isRecording = true; seconds = 0; audioChunks = [];
@@ -673,14 +703,33 @@ async function startRec() {
     }
 }
 
+const MIN_REC_SEC = 3;
+
 function stopRec() {
   if (!isRecording) return;
-  isRecording = false; hasRecording = true;
+  isRecording = false;
   clearInterval(recInterval); clearInterval(waveInterval);
   if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
   micBtn.classList.remove('recording');
   recState.classList.remove('visible');
   recTimerEl.style.color = '';
+  if (seconds < MIN_REC_SEC) {
+    audioChunks = [];
+    seconds = 0;
+    micBtn.style.display = '';
+    holdLabel.style.display = '';
+    holdLabel.classList.remove('hidden');
+    holdLabel.textContent = 'Too short — min 3 seconds';
+    holdLabel.style.color = '#ff6b6b';
+    setTimeout(() => {
+      holdLabel.textContent = 'Tap to record';
+      holdLabel.style.color = '';
+      recordedBlob = null;
+      if (previewAudio) { previewAudio.pause(); previewAudio = null; }
+    }, 2500);
+    return;
+  }
+  hasRecording = true;
   micBtn.style.display = 'none';
   holdLabel.style.display = 'none';
   const m = String(Math.floor(seconds/60)).padStart(2,'0');
@@ -1013,6 +1062,7 @@ window.toggleCommentRec = async function(postId) {
   } else {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stopActive();
       const chunks = [];
       const formats = ['audio/mp4','audio/webm;codecs=opus','audio/webm','audio/ogg'];
       const supported = formats.find(f => MediaRecorder.isTypeSupported(f)) || '';
