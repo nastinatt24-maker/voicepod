@@ -339,8 +339,15 @@ document.getElementById('nickInp').addEventListener('input', () => {
   if (val.length < 2) { hint.className='nick-hint'; hint.textContent = val.length ? 'Min 2 characters' : ''; return; }
   hint.className='nick-hint spin'; hint.textContent='Checking...';
   nickCheckTimer = setTimeout(async () => {
+    let timedOut = false;
+    const slowTimer = setTimeout(() => {
+      timedOut = true;
+      hint.className='nick-hint err'; hint.textContent='Connection slow, try again';
+    }, 4000);
     try {
       const snap = await getDoc(doc(db,'users',val));
+      clearTimeout(slowTimer);
+      if (timedOut) return;
       if (snap.exists()) {
         hint.className='nick-hint err'; hint.textContent='@'+val+' is taken';
       } else {
@@ -348,7 +355,7 @@ document.getElementById('nickInp').addEventListener('input', () => {
         btn.textContent = 'Claim @'+val;
         btn.disabled = false;
       }
-    } catch(e) { hint.className='nick-hint err'; hint.textContent='Check failed, try again'; }
+    } catch(e) { clearTimeout(slowTimer); hint.className='nick-hint err'; hint.textContent='Check failed, try again'; }
   }, 500);
 });
 
@@ -376,8 +383,15 @@ document.getElementById('s1NickInp').addEventListener('input', () => {
   if (val.length < 2) { hint.className='nick-hint'; hint.textContent = val.length ? 'Min 2 characters' : ''; return; }
   hint.className='nick-hint spin'; hint.textContent='Checking...';
   s1CheckTimer = setTimeout(async () => {
+    let timedOut = false;
+    const slowTimer = setTimeout(() => {
+      timedOut = true;
+      hint.className='nick-hint err'; hint.textContent='Connection slow, try again';
+    }, 4000);
     try {
       const snap = await getDoc(doc(db,'users',val));
+      clearTimeout(slowTimer);
+      if (timedOut) return;
       if (snap.exists()) {
         hint.className='nick-hint err'; hint.textContent='@'+val+' is already taken';
         startBtn.disabled = true;
@@ -386,7 +400,7 @@ document.getElementById('s1NickInp').addEventListener('input', () => {
         startBtn.textContent = 'Start';
         startBtn.disabled = false;
       }
-    } catch(e) { hint.className='nick-hint err'; hint.textContent='Check failed, try again'; }
+    } catch(e) { clearTimeout(slowTimer); hint.className='nick-hint err'; hint.textContent='Check failed, try again'; }
   }, 500);
 });
 
