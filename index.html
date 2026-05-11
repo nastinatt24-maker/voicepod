@@ -318,6 +318,13 @@ function genId() { return crypto.randomUUID ? crypto.randomUUID() : Math.random(
 function escapeHTML(str) {
   return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+
+// ── Profanity filter ──
+const BANNED_WORDS = ['fuck','shit','ass','bitch','bastard','cunt','dick','pussy','cock','fag','nigger','nigga','whore','slut','retard','faggot','twat','wanker','prick','asshole','arsehole','motherfucker','fucker','bullshit'];
+function containsProfanity(text) {
+  const lower = text.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return BANNED_WORDS.some(w => lower.includes(w));
+}
 let localUserId = loadPref('vp_uid') || (() => { const id = genId(); savePref('vp_uid', id); return id; })();
 let localNickname = loadPref('vp_nick') || '';
 let nickModalCallback = null;
@@ -337,6 +344,7 @@ document.getElementById('nickInp').addEventListener('input', () => {
   btn.disabled = true;
   clearTimeout(nickCheckTimer);
   if (val.length < 2) { hint.className='nick-hint'; hint.textContent = val.length ? 'Min 2 characters' : ''; return; }
+  if (containsProfanity(val)) { hint.className='nick-hint err'; hint.textContent='This handle is not allowed'; return; }
   hint.className='nick-hint spin'; hint.textContent='Checking...';
   nickCheckTimer = setTimeout(async () => {
     let timedOut = false;
@@ -381,6 +389,7 @@ document.getElementById('s1NickInp').addEventListener('input', () => {
   startBtn.disabled = true;
   clearTimeout(s1CheckTimer);
   if (val.length < 2) { hint.className='nick-hint'; hint.textContent = val.length ? 'Min 2 characters' : ''; return; }
+  if (containsProfanity(val)) { hint.className='nick-hint err'; hint.textContent='This handle is not allowed'; startBtn.disabled = true; return; }
   hint.className='nick-hint spin'; hint.textContent='Checking...';
   s1CheckTimer = setTimeout(async () => {
     let timedOut = false;
@@ -411,6 +420,7 @@ window.handleStart = async function() {
   const hint = document.getElementById('s1NickHint');
   startBtn.disabled = true;
   startBtn.textContent = 'Claiming...';
+  if (containsProfanity(val)) { hint.className='nick-hint err'; hint.textContent='This handle is not allowed'; startBtn.disabled = false; startBtn.textContent = 'Start'; return; }
   try {
     const userRef = doc(db,'users',val);
     await runTransaction(db, async (transaction) => {
@@ -433,6 +443,7 @@ window.claimNickname = async function() {
   const btn = document.getElementById('claimBtn');
   const hint = document.getElementById('nickHint');
   btn.disabled = true; btn.textContent = 'Claiming...';
+  if (containsProfanity(val)) { hint.className='nick-hint err'; hint.textContent='This handle is not allowed'; btn.disabled=false; btn.textContent='Claim @'+val; return; }
   try {
     const userRef = doc(db,'users',val);
     await runTransaction(db, async (transaction) => {
@@ -722,6 +733,7 @@ window.publishAndGo = async function() {
   const title = document.getElementById('titleInput').value.trim() || 'Untitled voice';
   const btn = document.getElementById('publishBtn');
   const status = document.getElementById('statusMsg');
+  if (containsProfanity(title)) { status.textContent = 'Your title contains prohibited words, please edit it.'; return; }
   btn.disabled = true; btn.textContent = 'Uploading...';
   status.innerHTML = '<span class="spinner"></span>Uploading audio...';
   try {
