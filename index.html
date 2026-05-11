@@ -88,7 +88,7 @@
   .nav-btn svg { width:24px; height:24px; }
 
   /* S4 FEED */
-  #s4 { align-items:center; overflow-y:auto; }
+  #s4 { align-items:center; overflow-y:auto; -webkit-overflow-scrolling:touch; height:100vh; }
   .s4-inner { width:100%; max-width:600px; display:flex; flex-direction:column; padding:clamp(24px,5vw,48px) clamp(16px,4vw,28px) 100px; gap:12px; flex:1; }
   .feed-title { font-family:'Syne',-apple-system,sans-serif; font-size:clamp(22px,5.5vw,32px); font-weight:800; letter-spacing:-.5px; margin-bottom:8px; }
   .post-card { background:var(--card); border:1px solid var(--border); border-radius:20px; padding:16px; transition:border-color .2s; }
@@ -107,14 +107,18 @@
   .feed-play-btn:hover { border-color:var(--accent); }
   .feed-play-btn.playing { border-color:var(--accent); }
   .feed-wave { flex:1; display:flex; align-items:center; gap:2px; height:30px; overflow:hidden; cursor:pointer; user-select:none; touch-action:none; }
-  .feed-wave span { display:inline-block; width:3px; border-radius:2px; background:var(--border); flex-shrink:0; opacity:.6; }
+  .feed-wave span { display:inline-block; width:3px; border-radius:2px; background:rgba(255,255,255,.22); flex-shrink:0; }
   .feed-dur { font-family:'Syne',-apple-system,sans-serif; font-size:12px; color:var(--muted); flex-shrink:0; }
   .comment-btn { background:none; border:none; color:var(--muted); cursor:pointer; display:flex; align-items:center; gap:6px; font-size:12px; font-family:'DM Sans',-apple-system,sans-serif; padding:8px 0 0; transition:color .2s; }
   .comment-btn:hover { color:var(--text); }
   .comment-btn svg { width:15px; height:15px; }
   .comment-btn.open { color:var(--accent); }
-  .comment-drawer { overflow:hidden; max-height:0; transition:max-height .35s ease; }
-  .comment-drawer.open { max-height:600px; }
+  .comment-drawer { overflow:hidden; max-height:0; transition:max-height .4s ease; }
+  .comment-drawer.open { max-height:340px; overflow-y:auto; -webkit-overflow-scrolling:touch; scrollbar-width:thin; scrollbar-color:var(--border) transparent; }
+  .comment-drawer.open::-webkit-scrollbar { width:4px; }
+  .comment-drawer.open::-webkit-scrollbar-track { background:transparent; }
+  .comment-drawer.open::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+  .comment-drawer.open::-webkit-scrollbar-thumb:hover { background:var(--accent); }
   .comment-drawer-inner { padding-top:14px; border-top:1px solid var(--border); margin-top:12px; display:flex; flex-direction:column; gap:10px; }
   .comment-item { display:flex; align-items:center; gap:10px; }
   .comment-item .avatar { width:28px; height:28px; }
@@ -127,7 +131,7 @@
   .comment-play { width:26px; height:26px; border-radius:50%; border:1px solid var(--border); background:none; color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .comment-play:hover { border-color:var(--accent); }
   .c-wave { flex:1; display:flex; align-items:center; gap:2px; height:18px; overflow:hidden; cursor:pointer; user-select:none; touch-action:none; }
-  .c-wave span { display:inline-block; width:3px; border-radius:2px; background:var(--border); flex-shrink:0; opacity:.6; }
+  .c-wave span { display:inline-block; width:3px; border-radius:2px; background:rgba(255,255,255,.13); flex-shrink:0; }
   .comment-dur { font-size:11px; color:var(--muted); flex-shrink:0; }
   .add-comment-btn { display:flex; align-items:center; gap:8px; width:100%; background:none; border:1.5px dashed var(--border); border-radius:12px; padding:11px 14px; color:var(--muted); font-family:'DM Sans',-apple-system,sans-serif; font-size:13px; cursor:pointer; transition:border-color .2s,color .2s; }
   .add-comment-btn:hover { border-color:var(--accent); color:var(--accent); }
@@ -241,13 +245,14 @@
 
 <div class="page" id="s4">
   <div class="s4-inner">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
       <h2 class="feed-title" style="margin-bottom:0;">Feed</h2>
       <button class="btn-new-voice" onclick="goTo('s2')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
         Record
       </button>
     </div>
+    <p id="postLimitHint" style="font-size:12px;color:var(--muted);text-align:right;margin-bottom:10px;"></p>
     <div id="feedCards"><div class="loading-card"><span class="spinner"></span>Loading posts...</div></div>
   </div>
   <nav class="feed-navbar">
@@ -806,7 +811,15 @@ async function loadFeed() {
     const snap = await Promise.race([getDocs(query(collection(db,'posts'), orderBy('createdAt','desc'), limit(100))), timeout]);
     if (snap.empty) { wrap.innerHTML = '<div class="loading-card">No posts yet. Be the first!</div>'; return; }
     wrap.innerHTML = '';
-    snap.forEach(docSnap => renderCard(wrap, docSnap.id, docSnap.data()));
+    let userPostCount = 0;
+    snap.forEach(docSnap => { if (docSnap.data().userId === localUserId) userPostCount++; renderCard(wrap, docSnap.id, docSnap.data()); });
+    const hint = document.getElementById('postLimitHint');
+    if (hint) {
+      hint.dataset.count = userPostCount;
+      const left = 3 - userPostCount;
+      if (left <= 0) { hint.textContent = 'You have used all 3 posts'; hint.style.color = '#ff6b6b'; }
+      else { hint.textContent = left + ' post' + (left === 1 ? '' : 's') + ' remaining'; hint.style.color = left === 1 ? '#ff6b6b' : 'var(--muted)'; }
+    }
   } catch(e) { wrap.innerHTML = '<div class="loading-card" style="cursor:pointer;user-select:none;" onclick="loadFeed()">Could not load posts. Tap to retry ↺</div>'; }
 }
 
@@ -816,10 +829,11 @@ function renderCard(wrap, postId, post) {
   card.className = 'post-card' + (isOwn ? ' own-post' : '');
   card.id = 'card_'+postId;
   const comments = post.comments || [];
-  const delSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  const trashSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14a2,2,0,0,1-2,2H8a2,2,0,0,1-2-2L5,6"/><path d="M10,11v6"/><path d="M14,11v6"/><path d="M9,6V4a1,1,0,0,1,1-1h4a1,1,0,0,1,1,1v2"/></svg>';
+  const delSvg = trashSvg;
   let commentsHTML = comments.map((c,ci) => {
     const isOwnC = c.userId === localUserId;
-    const cDel = isOwnC ? `<button class="del-btn" title="Delete comment" data-url="${c.audioUrl}" onclick="deleteComment('${postId}',this.dataset.url,this.closest('.comment-item'))">${delSvg}</button>` : '';
+    const cDel = isOwnC ? `<button class="del-btn" title="Delete comment" data-url="${c.audioUrl}" onclick="deleteComment('${postId}',this.dataset.url,this.closest('.comment-item'))" style="padding:4px 6px;margin-left:2px;">${trashSvg}</button>` : '';
     return `
     <div class="comment-item">
       <div class="avatar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
@@ -831,9 +845,9 @@ function renderCard(wrap, postId, post) {
           </button>
           <div class="c-wave" id="cw_${postId}_${ci}"></div>
           <span class="comment-dur">${escapeHTML(c.duration||'0:00')}</span>
+          ${cDel}
         </div>
       </div>
-      ${cDel}
     </div>`;
   }).join('');
   const commentLabel = String(comments.length);
@@ -967,7 +981,7 @@ window.toggleCommentRec = async function(postId) {
         const ci = clist.children.length;
         const item = document.createElement('div');
         item.className = 'comment-item';
-        const delSvgNew = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+        const delSvgNew = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3,6 5,6 21,6"/><path d="M19,6l-1,14a2,2,0,0,1-2,2H8a2,2,0,0,1-2-2L5,6"/><path d="M10,11v6"/><path d="M14,11v6"/><path d="M9,6V4a1,1,0,0,1,1-1h4a1,1,0,0,1,1,1v2"/></svg>';
         item.innerHTML = `
           <div class="avatar" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
           <div class="comment-body">
@@ -978,9 +992,9 @@ window.toggleCommentRec = async function(postId) {
               </button>
               <div class="c-wave" id="cw_${postId}_new${ci}"></div>
               <span class="comment-dur">${durStr}</span>
+              <button class="del-btn" title="Delete comment" data-url="${url}" onclick="deleteComment('${postId}',this.dataset.url,this.closest('.comment-item'))" style="padding:4px 6px;margin-left:2px;">${delSvgNew}</button>
             </div>
-          </div>
-          <button class="del-btn" title="Delete comment" data-url="${url}" onclick="deleteComment('${postId}',this.dataset.url,this.closest('.comment-item'))">${delSvgNew}</button>`;
+          </div>`;
         clist.appendChild(item);
         requestAnimationFrame(() => {
           const cw = document.getElementById(`cw_${postId}_new${ci}`);
@@ -1030,6 +1044,14 @@ window.deletePost = async function(postId, cardEl) {
     await deleteDoc(doc(db,'posts',postId));
     if (activeBtn && cardEl.contains(activeBtn)) stopActive();
     cardEl.remove();
+    const hint = document.getElementById('postLimitHint');
+    if (hint) {
+      const cur = parseInt(hint.dataset.count || '0') - 1;
+      hint.dataset.count = cur;
+      const left = 3 - cur;
+      if (left <= 0) { hint.textContent = 'You have used all 3 posts'; hint.style.color = '#ff6b6b'; }
+      else { hint.textContent = left + ' post' + (left === 1 ? '' : 's') + ' remaining'; hint.style.color = left === 1 ? '#ff6b6b' : 'var(--muted)'; }
+    }
   } catch(e) { alert('Error: '+e.message); }
 }
 
