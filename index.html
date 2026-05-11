@@ -820,33 +820,44 @@ window.publishAndGo = async function() {
   const btn = document.getElementById('publishBtn');
   const status = document.getElementById('statusMsg');
   if (containsProfanity(title)) { status.textContent = 'Your title contains prohibited words, please edit it.'; return; }
-  btn.disabled = true; btn.textContent = 'Checking...';
-  status.textContent = '';
-  try {
-    const userPostsSnap = await getDocs(query(collection(db,'posts'), where('userId','==',localUserId)));
-    if (userPostsSnap.size >= 3) {
-      status.textContent = 'You have reached the limit of 3 posts.';
-      btn.disabled = false; btn.textContent = 'Publish';
-      return;
-    }
-    if (userPostsSnap.size === 2) {
-      status.textContent = '⚠️ This is your last post — you have reached the limit of 3.';
-    }
-  } catch(e) {}
-  btn.textContent = 'Uploading...';
+  btn.disabled = true; btn.textContent = 'Uploading...';
   status.innerHTML = '<span class="spinner"></span>Uploading audio...';
   try {
     const { url, duration } = await uploadAudio(recordedBlob);
     const finalDuration = duration > 0 ? duration : seconds;
     const m = String(Math.floor(finalDuration/60)).padStart(2,'0');
     const s = String(finalDuration%60).padStart(2,'0');
-    await addDoc(collection(db,'posts'), { title, audioUrl:url, duration:m+':'+s, userId:localUserId, nickname:localNickname, createdAt:serverTimestamp(), comments:[] });
+    status.innerHTML = '<span class="spinner"></span>Saving...';
+    const docRef = await addDoc(collection(db,'posts'), { title, audioUrl:url, duration:m+':'+s, userId:localUserId, nickname:localNickname, createdAt:serverTimestamp(), comments:[] });
     gtag('event', 'post_published', { duration: m+':'+s });
-    goTo('s4');
+
+    // Navigate to s4 manually so we control what feedCards shows
+    stopActive();
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('s4').classList.add('active');
+    window.scrollTo(0, 0);
+
+    // Show success toast
     const toast = document.getElementById('toast');
     toast.classList.remove('hide');
     requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
     setTimeout(() => { toast.classList.remove('show'); toast.classList.add('hide'); }, 3200);
+
+    // Immediately show the new post so user sees it right away (not a blank/error screen)
+    const feedWrap = document.getElementById('feedCards');
+    feedWrap.innerHTML = '';
+    renderCard(feedWrap, docRef.id, { title, audioUrl:url, duration:m+':'+s, userId:localUserId, nickname:localNickname, comments:[] });
+    const hint = document.getElementById('postLimitHint');
+    if (hint) {
+      const newCount = parseInt(hint.dataset.count || '0') + 1;
+      hint.dataset.count = newCount;
+      const left = 3 - newCount;
+      if (left <= 0) { hint.textContent = 'You have used all 3 posts'; hint.style.color = '#ff6b6b'; }
+      else { hint.textContent = left + ' post' + (left===1?'':'s') + ' remaining'; hint.style.color = left===1?'#ff6b6b':'var(--muted)'; }
+    }
+
+    // Reload full feed silently in background (won't clear the card we just showed)
+    loadFeed(true);
   } catch(e) {
     status.textContent = 'Error: '+e.message;
     btn.disabled = false; btn.textContent = 'Publish';
@@ -854,11 +865,11 @@ window.publishAndGo = async function() {
 }
 
 // ── Feed ──
-async function loadFeed() {
+async function loadFeed(silent = false) {
   const wrap = document.getElementById('feedCards');
-  wrap.innerHTML = '<div class="loading-card"><span class="spinner"></span>Loading posts...</div>';
+  if (!silent) wrap.innerHTML = '<div class="loading-card"><span class="spinner"></span>Loading posts...</div>';
   try {
-    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 20000));
     const snap = await Promise.race([getDocs(query(collection(db,'posts'), orderBy('createdAt','desc'), limit(100))), timeout]);
     if (snap.empty) { wrap.innerHTML = '<div class="loading-card">No posts yet. Be the first!</div>'; return; }
     wrap.innerHTML = '';
@@ -871,7 +882,14 @@ async function loadFeed() {
       if (left <= 0) { hint.textContent = 'You have used all 3 posts'; hint.style.color = '#ff6b6b'; }
       else { hint.textContent = left + ' post' + (left === 1 ? '' : 's') + ' remaining'; hint.style.color = left === 1 ? '#ff6b6b' : 'var(--muted)'; }
     }
-  } catch(e) { wrap.innerHTML = '<div class="loading-card" style="cursor:pointer;user-select:none;" onclick="loadFeed()">Could not load posts. Tap to retry ↺</div>'; }
+  } catch(e) {
+    if (silent) {
+      // Background load failed — retry once visibly after a short pause
+      setTimeout(() => loadFeed(false), 3000);
+    } else {
+      wrap.innerHTML = '<div class="loading-card" style="cursor:pointer;user-select:none;" onclick="loadFeed()">Could not load posts. Tap to retry ↺</div>';
+    }
+  }
 }
 
 function renderCard(wrap, postId, post) {
