@@ -1006,6 +1006,15 @@ window.toggleCommentRec = async function(postId) {
     clearInterval(waveInt);
     recorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
+      if (secRef.value < MIN_REC_SEC) {
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="19" x2="12" y2="22"/></svg> Add your audio opinion';
+        btn.classList.remove('recording-comment', 'recording-ending');
+        btn.disabled = false;
+        btn.insertAdjacentHTML('afterend', '<p style="font-size:12px;color:#ff6b6b;margin-top:6px;">Too short — minimum 3 seconds.</p>');
+        setTimeout(() => { const p = btn.nextElementSibling; if (p && p.tagName === 'P') p.remove(); }, 3000);
+        delete commentRecorders[postId];
+        return;
+      }
       const blob = new Blob(chunks, { type: recorder.mimeType });
       btn.textContent = 'Checking...'; btn.classList.remove('recording-comment', 'recording-ending'); btn.disabled = true;
       try {
