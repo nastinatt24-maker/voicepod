@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Voice Pod</title>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-B1ND2F9GT1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-B1ND2F9GT1');
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://www.gstatic.com">
@@ -273,7 +280,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { initializeFirestore, memoryLocalCache, collection, addDoc, getDocs, orderBy, query, limit, serverTimestamp, doc, getDoc, setDoc, deleteDoc, updateDoc, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { initializeFirestore, memoryLocalCache, collection, addDoc, getDocs, orderBy, query, where, limit, serverTimestamp, doc, getDoc, setDoc, deleteDoc, updateDoc, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDjx-uAG2GVrJS8FTs1Yh5WSxCsGqEBH9w",
@@ -320,10 +327,14 @@ function escapeHTML(str) {
 }
 
 // ── Profanity filter ──
-const BANNED_WORDS = ['fuck','shit','ass','bitch','bastard','cunt','dick','pussy','cock','fag','nigger','nigga','whore','slut','retard','faggot','twat','wanker','prick','asshole','arsehole','motherfucker','fucker','bullshit'];
+const BANNED_WORDS = ['fuck','shit','ass','bitch','bastard','cunt','dick','pussy','cock','fag','niger','nigger','nigga','whore','slut','retard','faggot','twat','wanker','prick','asshole','arsehole','motherfucker','fucker','bullshit','bitch','damn','hell','crap','piss','anus','bollock','bugger','shag'];
 function containsProfanity(text) {
-  const lower = text.toLowerCase().replace(/[^a-z0-9]/g, '');
-  return BANNED_WORDS.some(w => lower.includes(w));
+  const normalized = text.toLowerCase()
+    .replace(/0/g,'o').replace(/1/g,'i').replace(/3/g,'e')
+    .replace(/4/g,'a').replace(/5/g,'s').replace(/7/g,'t')
+    .replace(/@/g,'a').replace(/\$/g,'s').replace(/!/g,'i')
+    .replace(/\*/g,'').replace(/[^a-z]/g,'');
+  return BANNED_WORDS.some(w => normalized.includes(w));
 }
 let localUserId = loadPref('vp_uid') || (() => { const id = genId(); savePref('vp_uid', id); return id; })();
 let localNickname = loadPref('vp_nick') || '';
@@ -430,6 +441,7 @@ window.handleStart = async function() {
     });
     localNickname = val;
     savePref('vp_nick', val);
+    gtag('event', 'sign_up', { method: 'nickname' });
     goTo('s4');
   } catch(e) {
     hint.className='nick-hint err';
@@ -453,6 +465,7 @@ window.claimNickname = async function() {
     });
     localNickname = val;
     savePref('vp_nick', val);
+    gtag('event', 'sign_up', { method: 'nickname' });
     document.getElementById('nickOverlay').classList.remove('show');
     if (nickModalCallback) { const cb = nickModalCallback; nickModalCallback = null; cb(); }
   } catch(e) {
@@ -734,7 +747,17 @@ window.publishAndGo = async function() {
   const btn = document.getElementById('publishBtn');
   const status = document.getElementById('statusMsg');
   if (containsProfanity(title)) { status.textContent = 'Your title contains prohibited words, please edit it.'; return; }
-  btn.disabled = true; btn.textContent = 'Uploading...';
+  btn.disabled = true; btn.textContent = 'Checking...';
+  status.textContent = '';
+  try {
+    const userPostsSnap = await getDocs(query(collection(db,'posts'), where('userId','==',localUserId)));
+    if (userPostsSnap.size >= 3) {
+      status.textContent = 'You have reached the limit of 3 posts.';
+      btn.disabled = false; btn.textContent = 'Publish';
+      return;
+    }
+  } catch(e) {}
+  btn.textContent = 'Uploading...';
   status.innerHTML = '<span class="spinner"></span>Uploading audio...';
   try {
     const { url, duration } = await uploadAudio(recordedBlob);
@@ -742,6 +765,7 @@ window.publishAndGo = async function() {
     const m = String(Math.floor(finalDuration/60)).padStart(2,'0');
     const s = String(finalDuration%60).padStart(2,'0');
     await addDoc(collection(db,'posts'), { title, audioUrl:url, duration:m+':'+s, userId:localUserId, nickname:localNickname, createdAt:serverTimestamp(), comments:[] });
+    gtag('event', 'post_published', { duration: m+':'+s });
     goTo('s4');
     const toast = document.getElementById('toast');
     toast.classList.remove('hide');
@@ -865,6 +889,7 @@ window.playAudio = function(btn, waveEl, url, cardEl) {
   activeDurEl = durEl;
   activeDurOriginal = durEl ? durEl.textContent.trim() : '';
   activeAudio.play();
+  gtag('event', 'audio_play');
   btn.querySelector('svg').innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
   btn.classList.add('playing');
   if (cardEl) cardEl.classList.add('playing');
