@@ -1152,9 +1152,28 @@ window.deleteComment = async function(postId, audioUrl, itemEl) {
 }
 
 if (localNickname) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById('s4').classList.add('active');
-  loadFeed();
+  // Verify the nickname still exists in Firestore (handles DB resets / admin deletions)
+  getDoc(doc(db, 'users', localNickname)).then(snap => {
+    if (snap.exists()) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById('s4').classList.add('active');
+      loadFeed();
+    } else {
+      // Nickname was deleted from DB — wipe local state and show onboarding
+      localNickname = '';
+      savePref('vp_nick', '');
+      try { localStorage.removeItem('vp_nick'); } catch(e) {}
+      // Restore s1 UI (was hidden because localNickname was set during init)
+      document.getElementById('s1NickWrap').style.display = '';
+      document.getElementById('s1Welcome').style.display = 'none';
+      document.getElementById('startBtn').textContent = 'Start';
+    }
+  }).catch(() => {
+    // Network error — assume nickname is valid, go to feed
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('s4').classList.add('active');
+    loadFeed();
+  });
 }
 </script>
 </body>
