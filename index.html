@@ -357,24 +357,32 @@ document.getElementById('nickInp').addEventListener('input', () => {
   if (val.length < 2) { hint.className='nick-hint'; hint.textContent = val.length ? 'Min 2 characters' : ''; return; }
   if (containsProfanity(val)) { hint.className='nick-hint err'; hint.textContent='This handle is not allowed'; return; }
   hint.className='nick-hint spin'; hint.textContent='Checking...';
-  nickCheckTimer = setTimeout(async () => {
-    let timedOut = false;
-    const slowTimer = setTimeout(() => {
-      timedOut = true;
-      hint.className='nick-hint err'; hint.textContent='Connection slow, try again';
-    }, 4000);
-    try {
-      const snap = await getDoc(doc(db,'users',val));
-      clearTimeout(slowTimer);
-      if (timedOut) return;
-      if (snap.exists()) {
-        hint.className='nick-hint err'; hint.textContent='@'+val+' is taken';
-      } else {
-        hint.className='nick-hint ok'; hint.textContent='@'+val+' is available ✓';
-        btn.textContent = 'Claim @'+val;
-        btn.disabled = false;
+  nickCheckTimer = setTimeout(() => {
+    let attempts = 0;
+    async function doCheck() {
+      attempts++;
+      try {
+        const snap = await Promise.race([
+          getDoc(doc(db,'users',val)),
+          new Promise((_,reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        ]);
+        if (snap.exists()) {
+          hint.className='nick-hint err'; hint.textContent='@'+val+' is taken';
+        } else {
+          hint.className='nick-hint ok'; hint.textContent='@'+val+' is available ✓';
+          btn.textContent = 'Claim @'+val;
+          btn.disabled = false;
+        }
+      } catch(e) {
+        if (e.message === 'timeout' && attempts < 2) {
+          hint.className='nick-hint spin'; hint.textContent='Still checking...';
+          doCheck();
+        } else {
+          hint.className='nick-hint err'; hint.textContent='Check failed, try again';
+        }
       }
-    } catch(e) { clearTimeout(slowTimer); hint.className='nick-hint err'; hint.textContent='Check failed, try again'; }
+    }
+    doCheck();
   }, 500);
 });
 
@@ -402,25 +410,34 @@ document.getElementById('s1NickInp').addEventListener('input', () => {
   if (val.length < 2) { hint.className='nick-hint'; hint.textContent = val.length ? 'Min 2 characters' : ''; return; }
   if (containsProfanity(val)) { hint.className='nick-hint err'; hint.textContent='This handle is not allowed'; startBtn.disabled = true; return; }
   hint.className='nick-hint spin'; hint.textContent='Checking...';
-  s1CheckTimer = setTimeout(async () => {
-    let timedOut = false;
-    const slowTimer = setTimeout(() => {
-      timedOut = true;
-      hint.className='nick-hint err'; hint.textContent='Connection slow, try again';
-    }, 4000);
-    try {
-      const snap = await getDoc(doc(db,'users',val));
-      clearTimeout(slowTimer);
-      if (timedOut) return;
-      if (snap.exists()) {
-        hint.className='nick-hint err'; hint.textContent='@'+val+' is already taken';
-        startBtn.disabled = true;
-      } else {
-        hint.className='nick-hint ok'; hint.textContent='@'+val+' is available ✓';
-        startBtn.textContent = 'Start';
-        startBtn.disabled = false;
+  s1CheckTimer = setTimeout(() => {
+    let attempts = 0;
+    async function doCheck() {
+      attempts++;
+      try {
+        const snap = await Promise.race([
+          getDoc(doc(db,'users',val)),
+          new Promise((_,reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        ]);
+        if (snap.exists()) {
+          hint.className='nick-hint err'; hint.textContent='@'+val+' is already taken';
+          startBtn.disabled = true;
+        } else {
+          hint.className='nick-hint ok'; hint.textContent='@'+val+' is available ✓';
+          startBtn.textContent = 'Start';
+          startBtn.disabled = false;
+        }
+      } catch(e) {
+        if (e.message === 'timeout' && attempts < 2) {
+          hint.className='nick-hint spin'; hint.textContent='Still checking...';
+          doCheck();
+        } else {
+          hint.className='nick-hint err'; hint.textContent='Check failed, try again';
+          startBtn.disabled = false;
+        }
       }
-    } catch(e) { clearTimeout(slowTimer); hint.className='nick-hint err'; hint.textContent='Check failed, try again'; }
+    }
+    doCheck();
   }, 500);
 });
 
@@ -756,6 +773,9 @@ window.publishAndGo = async function() {
       btn.disabled = false; btn.textContent = 'Publish';
       return;
     }
+    if (userPostsSnap.size === 2) {
+      status.textContent = '⚠️ This is your last post — you have reached the limit of 3.';
+    }
   } catch(e) {}
   btn.textContent = 'Uploading...';
   status.innerHTML = '<span class="spinner"></span>Uploading audio...';
@@ -924,8 +944,20 @@ window.toggleCommentRec = async function(postId) {
     recorder.onstop = async () => {
       stream.getTracks().forEach(t => t.stop());
       const blob = new Blob(chunks, { type: recorder.mimeType });
-      btn.textContent = 'Uploading...'; btn.classList.remove('recording-comment', 'recording-ending'); btn.disabled = true;
+      btn.textContent = 'Checking...'; btn.classList.remove('recording-comment', 'recording-ending'); btn.disabled = true;
       try {
+        const allPostsSnap = await getDocs(query(collection(db,'posts'), limit(100)));
+        let totalComments = 0;
+        allPostsSnap.forEach(d => {
+          (d.data().comments || []).forEach(c => { if (c.userId === localUserId) totalComments++; });
+        });
+        if (totalComments >= 10) {
+          btn.textContent = 'Add your audio opinion'; btn.disabled = false;
+          btn.insertAdjacentHTML('afterend', '<p style="font-size:12px;color:#ff6b6b;margin-top:6px;">You have reached the limit of 10 comments.</p>');
+          setTimeout(() => { const p = btn.nextElementSibling; if (p && p.tagName==='P') p.remove(); }, 4000);
+          return;
+        }
+        btn.textContent = 'Uploading...';
         const { url, duration } = await uploadAudio(blob);
         const finalDuration = duration > 0 ? duration : secRef.value;
         const m = String(Math.floor(finalDuration/60)).padStart(2,'0'), s = String(finalDuration%60).padStart(2,'0');
