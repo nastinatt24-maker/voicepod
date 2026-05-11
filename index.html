@@ -273,7 +273,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { initializeFirestore, memoryLocalCache, collection, addDoc, getDocs, orderBy, query, limit, serverTimestamp, doc, getDoc, setDoc, deleteDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { initializeFirestore, memoryLocalCache, collection, addDoc, getDocs, orderBy, query, limit, serverTimestamp, doc, getDoc, setDoc, deleteDoc, updateDoc, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDjx-uAG2GVrJS8FTs1Yh5WSxCsGqEBH9w",
@@ -399,18 +399,17 @@ window.handleStart = async function() {
   startBtn.textContent = 'Claiming...';
   try {
     const userRef = doc(db,'users',val);
-    const snap = await getDoc(userRef);
-    if (snap.exists()) {
-      hint.className='nick-hint err'; hint.textContent='@'+val+' was just taken, try another';
-      startBtn.disabled = false; startBtn.textContent = 'Start';
-      return;
-    }
-    await setDoc(userRef, { userId: localUserId, createdAt: serverTimestamp() });
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(userRef);
+      if (snap.exists()) throw new Error('taken');
+      transaction.set(userRef, { userId: localUserId, createdAt: serverTimestamp() });
+    });
     localNickname = val;
     savePref('vp_nick', val);
     goTo('s4');
   } catch(e) {
-    hint.className='nick-hint err'; hint.textContent='Error: '+e.message;
+    hint.className='nick-hint err';
+    hint.textContent = e.message === 'taken' ? '@'+val+' was just taken, try another' : 'Error: '+e.message;
     startBtn.disabled = false; startBtn.textContent = 'Start';
   }
 }
@@ -422,14 +421,20 @@ window.claimNickname = async function() {
   btn.disabled = true; btn.textContent = 'Claiming...';
   try {
     const userRef = doc(db,'users',val);
-    const snap = await getDoc(userRef);
-    if (snap.exists()) { hint.className='nick-hint err'; hint.textContent='@'+val+' was just taken, try another'; btn.disabled=false; btn.textContent='Claim @'+val; return; }
-    await setDoc(userRef, { userId: localUserId, createdAt: serverTimestamp() });
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(userRef);
+      if (snap.exists()) throw new Error('taken');
+      transaction.set(userRef, { userId: localUserId, createdAt: serverTimestamp() });
+    });
     localNickname = val;
     savePref('vp_nick', val);
     document.getElementById('nickOverlay').classList.remove('show');
     if (nickModalCallback) { const cb = nickModalCallback; nickModalCallback = null; cb(); }
-  } catch(e) { hint.className='nick-hint err'; hint.textContent='Error: '+e.message; btn.disabled=false; }
+  } catch(e) {
+    hint.className='nick-hint err';
+    hint.textContent = e.message === 'taken' ? '@'+val+' was just taken, try another' : 'Error: '+e.message;
+    btn.disabled=false; btn.textContent='Claim @'+val;
+  }
 }
 
 const MAX_POST_SEC = 180;    // 3 min для постов
@@ -727,11 +732,12 @@ async function loadFeed() {
   const wrap = document.getElementById('feedCards');
   wrap.innerHTML = '<div class="loading-card"><span class="spinner"></span>Loading posts...</div>';
   try {
-    const snap = await getDocs(query(collection(db,'posts'), orderBy('createdAt','desc'), limit(100)));
+    const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+    const snap = await Promise.race([getDocs(query(collection(db,'posts'), orderBy('createdAt','desc'), limit(100))), timeout]);
     if (snap.empty) { wrap.innerHTML = '<div class="loading-card">No posts yet. Be the first!</div>'; return; }
     wrap.innerHTML = '';
     snap.forEach(docSnap => renderCard(wrap, docSnap.id, docSnap.data()));
-  } catch(e) { wrap.innerHTML = '<div class="loading-card">Error loading. Try again.</div>'; }
+  } catch(e) { wrap.innerHTML = '<div class="loading-card" style="cursor:pointer;user-select:none;" onclick="loadFeed()">Could not load posts. Tap to retry ↺</div>'; }
 }
 
 function renderCard(wrap, postId, post) {
